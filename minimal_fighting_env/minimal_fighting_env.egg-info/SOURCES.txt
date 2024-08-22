@@ -1,0 +1,8 @@
+setup.py
+minimal_fighting_env.egg-info/PKG-INFO
+minimal_fighting_env.egg-info/SOURCES.txt
+minimal_fighting_env.egg-info/dependency_links.txt
+minimal_fighting_env.egg-info/requires.txt
+minimal_fighting_env.egg-info/top_level.txt
+player/__init__.py
+player/player.py

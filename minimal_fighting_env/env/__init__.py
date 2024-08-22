@@ -1,0 +1,1 @@
+from minimal_fighting_env.env.environment import MinimalFightingEnv
