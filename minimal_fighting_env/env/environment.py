@@ -7,7 +7,7 @@ import pygame
 from player.player import Player
 
 
-REQUIRED_REWARD_CONDITIONS = ["win", "lose", "win_best_of", "hit", "hurt"]
+REQUIRED_REWARD_CONDITIONS = ["win", "lose", "hit", "hurt", "block", "stun"]
 DATA_OBS_DIM = 6
 
 ACTION_TEMPLATE = {
@@ -26,9 +26,9 @@ ACTION_NAMES = ["noop", "left", "right", "punch", "kick", "block_high", "block_l
 class MinimalFightingEnv(gym.Env):
     metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 3}
 
-    def __init__(self, max_timesteps: int = 1000, initial_health: int = 3, best_of: int = 1, reward_shape: Optional[dict] = None, raw_pixel_obs: bool = False, render_mode: str = None):
+    def __init__(self, max_timesteps: int = 1000, initial_health: int = 3, reward_shape: Optional[dict] = None, raw_pixel_obs: bool = False, render_mode: str = None):
         super().__init__()
-
+        # TODO: [TBD] add best of series?
         if reward_shape is not None:
             assert set(list(reward_shape.keys())) == set(REQUIRED_REWARD_CONDITIONS), "Missing conditions %s for reward specification".format(set(REQUIRED_REWARD_CONDITIONS) - set(list(reward_shape.keys())))
         self.p1 = Player(color=(204, 0, 0), max_hp=initial_health)
@@ -47,7 +47,6 @@ class MinimalFightingEnv(gym.Env):
         self.timestep = 0
         self.max_timesteps = max_timesteps
         self.initial_health = initial_health
-        self.best_of = best_of
         self.reward_shape = reward_shape if reward_shape else self._create_default_reward()
         self.raw_pixel_obs = raw_pixel_obs
 
@@ -57,9 +56,13 @@ class MinimalFightingEnv(gym.Env):
                 "p2": gym.spaces.Box(low=0.0, high=1.0, shape=(self.grid_height, self.grid_width, 3)),
                 "hud": gym.spaces.Box(low=0.0, high=1.0, shape=(self.grid_height, self.grid_width, 3))
             }
-            self.observation_space = gym.spaces.Dict(spaces=obs_dict)
         else:
-            self.observation_space = gym.spaces.Box(low=0.0, high=1.0, shape=(2 * DATA_OBS_DIM,))
+            obs_dict = {
+                "p1": gym.spaces.Box(low=0.0, high=30.0, shape=(2 * DATA_OBS_DIM,), dtype=np.int32),
+                "p2": gym.spaces.Box(low=0.0, high=30.0, shape=(2 * DATA_OBS_DIM,), dtype=np.int32)
+            }
+        self.observation_space = gym.spaces.Dict(spaces=obs_dict)
+
         self.action_space = gym.spaces.Dict(spaces={
             "p1": gym.spaces.Discrete(n=len(ACTION_NAMES)),
             "p2": gym.spaces.Discrete(n=len(ACTION_NAMES))
@@ -78,23 +81,23 @@ class MinimalFightingEnv(gym.Env):
         reward = {
             "win": 1.0,
             "lose": -1.0,
-            "win_best_of": self.best_of if self.best_of > 1 else 0.0,
             "hit": 0.0,
-            "hurt": 0.0
+            "hurt": 0.0,
+            "block": 0.0,
+            "stun": 0.0
         }
 
         return reward
 
     def reset(self, seed: int = 42):
         super().reset(seed=seed)
-        # TODO: make it adaptable for v2?
         self.p1.reset(x=self.p1_start_pos[0], y=self.p1_start_pos[1])
         self.p1_last_action = 0
         self.p2.reset(x=self.p2_start_pos[0], y=self.p2_start_pos[1])
         self.p2_last_action = 0
 
         obs = self._get_obs()
-        info = self._get_info()
+        info = self._get_info(p1_reward=None, p2_reward=None)
 
         self.timestep = 0
 
@@ -120,14 +123,16 @@ class MinimalFightingEnv(gym.Env):
         p2_dead = self.p2.get_hp() == 0
 
         obs = self._get_obs()
-        info = self._get_info()
 
         if p1_dead or p2_dead:
             terminated = True
         if self.timestep >= self.max_timesteps:
             truncated = True
 
-        rewards = self.compute_rewards(p1_hit, p2_hit, p1_dead, p2_dead)
+        p1_reward, p2_reward = self.compute_rewards(p1_hit, p2_hit, p1_dead, p2_dead)
+        rewards = [float(np.sum(list(p1_reward.values()))), float(np.sum(list(p2_reward.values())))]
+
+        info = self._get_info(p1_reward, p2_reward)
 
         self.timestep += 1
 
@@ -153,8 +158,15 @@ class MinimalFightingEnv(gym.Env):
         elif p2_hit:
             p1_rewards["hurt"] += self.reward_shape["hurt"]
             p2_rewards["hit"] += self.reward_shape["hit"]
+        # Stun/Block condition
+        if self.p1.get_stunned() == self.stun_steps:
+            p1_rewards["stun"] += self.reward_shape["stun"]
+            p2_rewards["block"] += self.reward_shape["block"]
+        if self.p2.get_stunned() == self.stun_steps:
+            p1_rewards["block"] += self.reward_shape["block"]
+            p2_rewards["stun"] += self.reward_shape["stun"]
 
-        return [p1_rewards, p2_rewards]
+        return p1_rewards, p2_rewards
 
     def _move_players(self):
         p1_pos = self.p1.get_position()
@@ -213,20 +225,27 @@ class MinimalFightingEnv(gym.Env):
 
     def _get_obs(self):
         p1_state = self.p1.get_state()
+        p1_state.append(self.p1_last_action)
         p2_state = self.p2.get_state()
+        p2_state.append(self.p2_last_action)
         if self.raw_pixel_obs:
             obs = self._build_obs_grid(p1_state, p2_state)
         else:
-            obs = [np.concatenate([p1_state, p2_state]), np.concatenate([p2_state, p1_state])]
+            obs = {
+                "p1": np.concatenate([p1_state, p2_state]).astype(np.int32),
+                "p2": np.concatenate([p2_state, p1_state]).astype(np.int32)
+            }
 
         return obs
 
-    def _get_info(self):
+    def _get_info(self, p1_reward, p2_reward):
         p1_state = self.p1.get_dict_state()
         p2_state = self.p2.get_dict_state()
         info = {
-            "p1": p1_state,
-            "p2": p2_state
+            "p1_state": p1_state,
+            "p2_state": p2_state,
+            "p1_reward": p1_reward if p1_reward else "None",
+            "p2_reward": p2_reward if p2_reward else "None"
         }
 
         return info
