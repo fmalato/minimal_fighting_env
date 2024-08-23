@@ -26,7 +26,11 @@ There are two attacks ("punch" and "kick") and two parries ("high" and "low"). A
 
 ### Parameters
 - `initial_health`: How many hit points each player has
-- `reward_shape`: The reward assigned to a player whenever a certain situation occurs.
+- `reward_shape`: The reward assigned to a player whenever a certain situation occurs
+- `max_timesteps`: The maximum number of timesteps. Same as base gym argument, just re-defined for simplicity
+- `raw_pixel_obs`: Flag that decides whether to use an RGB image or internal data as observation
+
+Additionally, some parameters are defined in the `__init__()` method. You can change them, but I don't recommend doing so.
 
 ### Custom reward
 An agent receives a reward in seven different occasions, namely for winning/losing a fight, hitting an opponent and getting hit, blocking/getting stunned, and a time condition. To specify a reward, you have to specify all the conditions. By default, the reward is specified as follows. To use a custom reward, simply change the values related to each condition.
