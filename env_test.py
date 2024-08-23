@@ -8,10 +8,10 @@ import pygame
 actions = {
     'a': 1,
     'd': 2,
-    'e': 3,
-    'q': 4,
-    'r': 5,
-    'f': 6
+    'i': 3,
+    'k': 4,
+    'o': 5,
+    'l': 6
 }
 
 
@@ -38,11 +38,16 @@ if __name__ == '__main__':
     obs, info = env.reset(seed=np.random.randint(0, 100000))
     terminated = False
     truncated = False
+    timestep = 0
+    rewards = [0.0, 0.0]
     while not (terminated or truncated):
         action_1, close_request = handle_inputs()
+        #action_2 = 5 if timestep % 2 == 0 else 3
         action_2 = np.random.randint(0, 6)
         if close_request:
             break
-        obs, reward, terminated, truncated, info = env.step([action_1, action_2])
+        obs, rewards, terminated, truncated, info = env.step([action_1, action_2])
+        timestep += 1
+    print(rewards)
 
     env.close()
