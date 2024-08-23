@@ -56,6 +56,7 @@ class MinimalFightingEnv(gym.Env):
         self.initial_health = initial_health
         self.reward_shape = reward_shape if reward_shape else self._create_default_reward()
         self.raw_pixel_obs = raw_pixel_obs
+        assert self.initial_health <= int(self.grid_width / 2), f"'initial_health' must be <= {int(self.grid_width / 2)}"
 
         if self.raw_pixel_obs:
             obs_dict = {
