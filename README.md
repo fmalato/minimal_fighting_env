@@ -21,6 +21,8 @@ The environment uses minimalistic graphics to maximize running and rendering spe
 Players are represented by stacks of red/blue blocks.
 Health bars are shown on the top part of the window using similar blocks.
 An attack is shown as a half block. Similarly, a parry is represented by a half block with a lighter shade of red/blue.
+Whenever a player is stunned, a white bar will appear directly under its health bar. The bar shortens at each time step. 
+Finally, a player that has been hit will flash for some time steps. While flashing, that player is invulnerable.
 
 There are two attacks ("punch" and "kick") and two parries ("high" and "low"). A "punch" can be blocked by a "high" parry, while a "kick" is prevented using a "low" parry.
 
