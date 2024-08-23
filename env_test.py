@@ -6,6 +6,8 @@ import gymnasium as gym
 import numpy as np
 import pygame
 
+import matplotlib.pyplot as plt
+
 
 actions = {
     'a': 1,
@@ -94,9 +96,10 @@ if __name__ == '__main__':
         "hit": 0.2,
         "hurt": -0.2,
         "stun": -0.1,
-        "block": 0.1
+        "block": 0.1,
+        "time": -0.001
     }
-    env = gym.make("MinimalFightingEnv-v0", render_mode="human", reward_shape=reward_shape)
+    env = gym.make("MinimalFightingEnv-v0", render_mode="human", reward_shape=reward_shape, raw_pixel_obs=True, initial_health=7)
     obs, info = env.reset(seed=np.random.randint(0, 100000))
     terminated = False
     truncated = False
@@ -110,6 +113,5 @@ if __name__ == '__main__':
             break
         obs, rewards, terminated, truncated, info = env.step([action_1, action_2])
         timestep += 1
-        print(rewards)
 
     env.close()

@@ -7,7 +7,7 @@ import pygame
 from player.player import Player
 
 
-REQUIRED_REWARD_CONDITIONS = ["win", "lose", "hit", "hurt", "block", "stun"]
+REQUIRED_REWARD_CONDITIONS = ["win", "lose", "hit", "hurt", "block", "stun", "time"]
 DATA_OBS_DIM = 6
 
 ACTION_TEMPLATE = {
@@ -21,6 +21,12 @@ ACTION_TEMPLATE = {
 }
 
 ACTION_NAMES = ["noop", "left", "right", "punch", "kick", "block_high", "block_low"]
+P1_COLOR = (204, 0, 0)
+P2_COLOR = (0, 102, 204)
+P1_BLOCK_COLOR = (255, 153, 153)
+P2_BLOCK_COLOR = (153, 255, 255)
+GREY = (194, 194, 194)
+WHITE = (255, 255, 255)
 
 
 class MinimalFightingEnv(gym.Env):
@@ -31,14 +37,15 @@ class MinimalFightingEnv(gym.Env):
         # TODO: [TBD] add best of series?
         if reward_shape is not None:
             assert set(list(reward_shape.keys())) == set(REQUIRED_REWARD_CONDITIONS), "Missing conditions %s for reward specification".format(set(REQUIRED_REWARD_CONDITIONS) - set(list(reward_shape.keys())))
-        self.p1 = Player(color=(204, 0, 0), max_hp=initial_health)
-        self.p2 = Player(color=(0, 102, 204), max_hp=initial_health)
+        self.p1 = Player(color=P1_COLOR, max_hp=initial_health)
+        self.p2 = Player(color=P2_COLOR, max_hp=initial_health)
         self.last_frame = None
-        self.grid_width = 25
-        self.grid_height = 15
+        self.grid_width = 20
+        self.grid_height = 12
         self.pixel_render_size = 25
         self.hitbox_size = 2
         self.stun_steps = 5
+        self.damaged_steps = 4
         self.p1_start_pos = (2, self.grid_height - 2)
         self.p2_start_pos = (self.grid_width - 3, self.grid_height - 2)
         self.p1_last_action = 0
@@ -53,8 +60,7 @@ class MinimalFightingEnv(gym.Env):
         if self.raw_pixel_obs:
             obs_dict = {
                 "p1": gym.spaces.Box(low=0.0, high=1.0, shape=(self.grid_height, self.grid_width, 3)),
-                "p2": gym.spaces.Box(low=0.0, high=1.0, shape=(self.grid_height, self.grid_width, 3)),
-                "hud": gym.spaces.Box(low=0.0, high=1.0, shape=(self.grid_height, self.grid_width, 3))
+                "p2": gym.spaces.Box(low=0.0, high=1.0, shape=(self.grid_height, self.grid_width, 3))
             }
         else:
             obs_dict = {
@@ -84,7 +90,8 @@ class MinimalFightingEnv(gym.Env):
             "hit": 0.0,
             "hurt": 0.0,
             "block": 0.0,
-            "stun": 0.0
+            "stun": 0.0,
+            "time": 0.0
         }
 
         return reward
@@ -114,11 +121,23 @@ class MinimalFightingEnv(gym.Env):
 
         self._move_players()
 
+        if self.p1.get_damaged() > 0:
+            self.p1.decrease_damaged()
+        if self.p2.get_damaged() > 0:
+            self.p2.decrease_damaged()
+
         p1_hit, p2_hit = self._check_collisions(self.p1.get_position(), self.p2.get_position())
         if p1_hit:
+            p2_pos = self.p2.get_position()
             self.p2.set_hp(self.p2.get_hp() - 1)
+            self.p2.set_damaged(self.damaged_steps)
+            self.p2.set_position(x=min(p2_pos["x"] + 2, self.grid_width - 1), y=p2_pos["y"])
         elif p2_hit:
+            p1_pos = self.p1.get_position()
             self.p1.set_hp(self.p1.get_hp() - 1)
+            self.p1.set_damaged(self.damaged_steps)
+            self.p1.set_position(x=max(0, p1_pos["x"] - 2), y=p1_pos["y"])
+
         p1_dead = self.p1.get_hp() == 0
         p2_dead = self.p2.get_hp() == 0
 
@@ -130,7 +149,7 @@ class MinimalFightingEnv(gym.Env):
             truncated = True
 
         p1_reward, p2_reward = self.compute_rewards(p1_hit, p2_hit, p1_dead, p2_dead)
-        rewards = [float(np.sum(list(p1_reward.values()))), float(np.sum(list(p2_reward.values())))]
+        rewards = [float(np.sum(list(p1_reward.values()))) - self.reward_shape["time"], float(np.sum(list(p2_reward.values()))) - self.reward_shape["time"]]
 
         info = self._get_info(p1_reward, p2_reward)
 
@@ -181,7 +200,7 @@ class MinimalFightingEnv(gym.Env):
             elif ACTION_NAMES[self.p1_last_action] == "right":
                 self.p1.set_position(x=max(0, min(p1_pos["x"] + 1, p2_pos["x"] - 1)), y=p1_pos["y"])
         else:
-            self.p1.set_stunned(max(0, p1_stun - 1))
+            self.p1.decrease_stunned()
 
         if p2_stun == 0:
             if ACTION_NAMES[self.p2_last_action] == "left":
@@ -189,7 +208,7 @@ class MinimalFightingEnv(gym.Env):
             elif ACTION_NAMES[self.p2_last_action] == "right":
                 self.p2.set_position(x=min(self.grid_width - 1, max(p1_pos["x"] + 1, p2_pos["x"] + 1)), y=p2_pos["y"])
         else:
-            self.p2.set_stunned(max(0, p2_stun - 1))
+            self.p2.decrease_stunned()
 
     def _check_collisions(self, p1_pos, p2_pos):
         p1_hit = False
@@ -220,6 +239,11 @@ class MinimalFightingEnv(gym.Env):
                     self.p1.set_stunned(0)
                 else:
                     self.p2.set_stunned(self.stun_steps)
+            # Invulnerable for some time after being hit
+            if self.p1.get_damaged() > 0:
+                p2_hit = False
+            if self.p2.get_damaged() > 0:
+                p1_hit = False
 
         return p1_hit, p2_hit
 
@@ -271,12 +295,13 @@ class MinimalFightingEnv(gym.Env):
         p1_stun = self.p1.get_stunned()
         p2_stun = self.p2.get_stunned()
 
-        for p, c in zip([p1_pos, p2_pos], [p1_color, p2_color]):
+        for player, pos, c in zip([self.p1, self.p2], [p1_pos, p2_pos], [p1_color, p2_color]):
+            player_damaged = player.get_damaged()
             pygame.draw.rect(
                 canvas,
-                c,
+                GREY if (player_damaged > 0 and player_damaged % 2 == 0) else c,
                 pygame.Rect(
-                    p["x"] * self.pixel_render_size, p["y"] * self.pixel_render_size, self.pixel_render_size, 2 * self.pixel_render_size
+                    pos["x"] * self.pixel_render_size, pos["y"] * self.pixel_render_size, self.pixel_render_size, 2 * self.pixel_render_size
                 )
             )
 
@@ -302,7 +327,7 @@ class MinimalFightingEnv(gym.Env):
         for i in range(p1_stun):
             pygame.draw.rect(
                 canvas,
-                (255, 255, 255),
+                WHITE,
                 pygame.Rect(
                     i * self.pixel_render_size, self.pixel_render_size, self.pixel_render_size, self.pixel_render_size
                 )
@@ -310,7 +335,7 @@ class MinimalFightingEnv(gym.Env):
         for i in range(self.grid_width - 1, self.grid_width - p2_stun - 1, -1):
             pygame.draw.rect(
                 canvas,
-                (255, 255, 255),
+                WHITE,
                 pygame.Rect(
                     i * self.pixel_render_size, self.pixel_render_size, self.pixel_render_size, self.pixel_render_size
                 )
@@ -355,7 +380,7 @@ class MinimalFightingEnv(gym.Env):
                 )
 
         # Draw parry
-        for p, c, a, o, d in zip([p1_pos, p2_pos], [(255, 153, 153), (153, 255, 255)], [self.p1_last_action, self.p2_last_action], [1, -1], [0, int(self.pixel_render_size / 2)]):
+        for p, c, a, o, d in zip([p1_pos, p2_pos], [P1_BLOCK_COLOR, P2_BLOCK_COLOR], [self.p1_last_action, self.p2_last_action], [1, -1], [0, int(self.pixel_render_size / 2)]):
             if ACTION_NAMES[a] == "block_high":
                 pygame.draw.rect(
                     canvas,
@@ -389,8 +414,49 @@ class MinimalFightingEnv(gym.Env):
             pygame.quit()
 
     def _build_obs_grid(self, p1_state, p2_state):
-        obs = []
+        p1_obs = np.zeros(shape=(self.grid_height, self.grid_width, 3), dtype=np.float32)
+        p1_color = self.p1.get_color()
+        p2_color = self.p2.get_color()
 
+        # Player
+        p1_obs[p1_state[1]: p1_state[1] + 2, p1_state[0]] = np.array(p1_color)
+        p1_obs[p2_state[1]: p2_state[1] + 2, p2_state[0]] = np.array(p2_color)
+        # HP
+        p1_obs[0, 0: p1_state[2]] = np.array(p1_color)
+        p1_obs[0, self.grid_width - p2_state[2]: self.grid_width] = np.array(p2_color)
+        # Stun
+        p1_obs[0, 0: p1_state[3]] = np.array(WHITE)
+        p1_obs[0, self.grid_width - p2_state[3]: self.grid_width] = np.array(WHITE)
+        # Action
+        for s, c, bc, o in zip([p1_state, p2_state], [p1_color, p2_color], [P1_BLOCK_COLOR, P2_BLOCK_COLOR], [1, -1]):
+            if ACTION_NAMES[p1_state[4]] == "punch":
+                p1_obs[s[1], s[0] + o] = np.array(c)
+            elif ACTION_NAMES[p1_state[4]] == "kick":
+                p1_obs[s[1] + 1, s[0] + o] = np.array(c)
+            if ACTION_NAMES[p1_state[4]] == "block_high":
+                p1_obs[s[1], s[0] + o] = np.array(bc)
+            elif ACTION_NAMES[p1_state[4]] == "block_low":
+                p1_obs[s[1] + 1, s[0] + o] = np.array(bc)
+        # Damaged
+
+
+        # p2_obs from p1_obs by inverting colors
+        p2_obs = np.zeros_like(p1_obs)
+        # TODO: find more robust way: if player colors change, this will likely break
+        # Swap main color
+        p2_obs[np.where(p1_obs[:, :, 0] == p1_color[0])] = np.array(p2_color)
+        p2_obs[np.where(p1_obs[:, :, 2] == p2_color[2])] = np.array(p1_color)
+        # Swap block color
+        p2_obs[np.where(p1_obs[:, :, 2] == P1_BLOCK_COLOR[2])] = np.array(P2_BLOCK_COLOR)
+        p2_obs[np.where(p1_obs[:, :, 0] == P2_BLOCK_COLOR[0])] = np.array(P1_BLOCK_COLOR)
+        p2_obs = np.flip(p2_obs, axis=1)
+
+        obs_dict = {
+            "p1": p1_obs / 255.,
+            "p2": p2_obs / 255.
+        }
+
+        return obs_dict
 
     def one_hot_act(self, action):
         one_hot_act = np.zeros_like(ACTION_NAMES)
