@@ -27,10 +27,10 @@ You are playing as the RED character.
 
 1. CONTROLS
                            [ KEYBOARD ]
---------------------------------------[punch]---[block punch]------
+--------------------------------------[punch]-----[block high]-----
 [move left]----------------------------------- I - O --------------
 ---- A --- D ---------------------------------- K - L -------------
----------[move right]-------------------[kick]-------[block kick]--
+---------[move right]-------------------[kick]-------[block low]---
 -------------------------------------------------------------------
 
 - Move your character left/right with A/D keys.
@@ -40,7 +40,7 @@ You are playing as the RED character.
 - Block an incoming kick with L.
 
 2. RULES
-- Each player has 3 Hit Points.
+- Each player has initial_health Hit Points.
 - If the opponent hits you, you lose 1 Hit Point.
 - Successfully blocking an incoming attack stuns the opponent for 
   5 time steps.
