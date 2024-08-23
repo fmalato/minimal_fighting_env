@@ -63,3 +63,6 @@ You can let two agent play, or you can choose to control player 1. In this case,
 ```
 
 ## Known problems
+
+## Citation
+Coming soon
