@@ -58,7 +58,7 @@ reward_shape = {
 - Last player standing wins.
 
 ## Controls
-You can let two agent play, or you can choose to control player 1. In this case, control your agent with the following keys
+You can let two agents play, or you can choose to control player 1. In this case, control your agent with the following keys
 ```
                            [ KEYBOARD ]
 --------------------------------------[punch]-----[block high]-----
