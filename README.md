@@ -1,4 +1,4 @@
-# Minimal Fighting Environment
+# MiniFight
 <p align="center">
   <img src="figures/game_shot.png" />
 </p>
