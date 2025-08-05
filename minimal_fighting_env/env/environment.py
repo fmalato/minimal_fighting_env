@@ -27,6 +27,7 @@ P1_BLOCK_COLOR = (255, 153, 153)
 P2_BLOCK_COLOR = (153, 255, 255)
 GREY = (194, 194, 194)
 WHITE = (255, 255, 255)
+YELLOW = (255, 255, 0)
 
 
 class MinimalFightingEnv(gym.Env):
@@ -50,6 +51,8 @@ class MinimalFightingEnv(gym.Env):
         self.p2_start_pos = (self.grid_width - 3, self.grid_height - 2)
         self.p1_last_action = 0
         self.p2_last_action = 0
+        self.p1_attack_mask_frames = 0
+        self.p2_attack_mask_frames = 0
 
         self.timestep = 0
         self.max_timesteps = max_timesteps
@@ -127,15 +130,36 @@ class MinimalFightingEnv(gym.Env):
         if self.p2.get_damaged() > 0:
             self.p2.decrease_damaged()
 
-        p1_hit, p2_hit = self._check_collisions(self.p1.get_position(), self.p2.get_position())
-        if p1_hit:
-            p2_pos = self.p2.get_position()
-            self.p2.set_hp(self.p2.get_hp() - 1)
+        # Check for frame masking due to attack
+        if self.p1_attack_mask_frames == 0:
+            if ACTION_NAMES[self.p1_last_action] == "punch":
+                self.p1_attack_mask_frames = 3
+            elif ACTION_NAMES[self.p1_last_action] == "kick":
+                self.p1_attack_mask_frames = 5
+        else:
+            self.p1_attack_mask_frames -= 1
+            self.p1_last_action = 0
+
+        if self.p2_attack_mask_frames == 0:
+            if ACTION_NAMES[self.p2_last_action] == "punch":
+                self.p2_attack_mask_frames = 3
+            elif ACTION_NAMES[self.p2_last_action] == "kick":
+                self.p2_attack_mask_frames = 5
+        else:
+            self.p2_attack_mask_frames -= 1
+            self.p2_last_action = 0
+
+        p1_pos = self.p1.get_position()
+        p2_pos = self.p2.get_position()
+        p1_hit_punch, p1_hit_kick, p2_hit_punch, p2_hit_kick = self._check_collisions(p1_pos, p2_pos)
+        if p1_hit_punch or p1_hit_kick:
+            damage = 1 if p1_hit_punch else 2
+            self.p2.set_hp(self.p2.get_hp() - damage)
             self.p2.set_damaged(self.damaged_steps)
             self.p2.set_position(x=min(p2_pos["x"] + 2, self.grid_width - 1), y=p2_pos["y"])
-        elif p2_hit:
-            p1_pos = self.p1.get_position()
-            self.p1.set_hp(self.p1.get_hp() - 1)
+        elif p2_hit_punch or p2_hit_kick:
+            damage = 1 if p2_hit_punch else 2
+            self.p1.set_hp(self.p1.get_hp() - damage)
             self.p1.set_damaged(self.damaged_steps)
             self.p1.set_position(x=max(0, p1_pos["x"] - 2), y=p1_pos["y"])
 
@@ -149,7 +173,7 @@ class MinimalFightingEnv(gym.Env):
         if self.timestep >= self.max_timesteps:
             truncated = True
 
-        p1_reward, p2_reward = self.compute_rewards(p1_hit, p2_hit, p1_dead, p2_dead)
+        p1_reward, p2_reward = self.compute_rewards(p1_hit_punch or p1_hit_kick, p2_hit_punch or p2_hit_kick, p1_dead, p2_dead)
         rewards = [float(np.sum(list(p1_reward.values()))) - self.reward_shape["time"], float(np.sum(list(p2_reward.values()))) - self.reward_shape["time"]]
 
         info = self._get_info(p1_reward, p2_reward)
@@ -212,41 +236,45 @@ class MinimalFightingEnv(gym.Env):
             self.p2.decrease_stunned()
 
     def _check_collisions(self, p1_pos, p2_pos):
-        p1_hit = False
-        p2_hit = False
+        p1_hit_punch = False
+        p1_hit_kick = False
+        p2_hit_punch = False
+        p2_hit_kick = False
         if p2_pos["x"] - p1_pos["x"] <= self.hitbox_size:
             # Can hit at the same time
             if ACTION_NAMES[self.p1_last_action] == "punch":
                 if ACTION_NAMES[self.p2_last_action] != "block_high":
-                    p1_hit = True
+                    p1_hit_punch = True
                     self.p2.set_stunned(0)
                 else:
                     self.p1.set_stunned(self.stun_steps)
             elif ACTION_NAMES[self.p1_last_action] == "kick":
                 if ACTION_NAMES[self.p2_last_action] != "block_low":
-                    p1_hit = True
+                    p1_hit_kick = True
                     self.p2.set_stunned(0)
                 else:
                     self.p1.set_stunned(self.stun_steps)
             if ACTION_NAMES[self.p2_last_action] == "punch":
                 if ACTION_NAMES[self.p1_last_action] != "block_high":
-                    p2_hit = True
+                    p2_hit_punch = True
                     self.p1.set_stunned(0)
                 else:
                     self.p2.set_stunned(self.stun_steps)
             elif ACTION_NAMES[self.p2_last_action] == "kick":
                 if ACTION_NAMES[self.p1_last_action] != "block_low":
-                    p2_hit = True
+                    p2_hit_kick = True
                     self.p1.set_stunned(0)
                 else:
                     self.p2.set_stunned(self.stun_steps)
             # Invulnerable for some time after being hit
             if self.p1.get_damaged() > 0:
-                p2_hit = False
+                p2_hit_punch = False
+                p2_hit_kick = False
             if self.p2.get_damaged() > 0:
-                p1_hit = False
+                p1_hit_punch = False
+                p1_hit_kick = False
 
-        return p1_hit, p2_hit
+        return p1_hit_punch, p1_hit_kick, p2_hit_punch, p2_hit_kick
 
     def _get_obs(self):
         p1_state = self.p1.get_state()
@@ -342,7 +370,6 @@ class MinimalFightingEnv(gym.Env):
                 )
             )
 
-
         # Plot grid
         for x in range(self.grid_height + 1):
             pygame.draw.line(
@@ -398,6 +425,24 @@ class MinimalFightingEnv(gym.Env):
                         (p["x"] + o) * self.pixel_render_size + d, (p["y"] + 1) * self.pixel_render_size, int(self.pixel_render_size / 2), self.pixel_render_size
                     )
                 )
+
+        # Draw attack frame block
+        for i in range(self.p1_attack_mask_frames):
+            pygame.draw.rect(
+                canvas,
+                YELLOW,
+                pygame.Rect(
+                    i * self.pixel_render_size, 2 * self.pixel_render_size, self.pixel_render_size, self.pixel_render_size
+                )
+            )
+        for i in range(self.grid_width - 1, self.grid_width - self.p2_attack_mask_frames - 1, -1):
+            pygame.draw.rect(
+                canvas,
+                YELLOW,
+                pygame.Rect(
+                    i * self.pixel_render_size, 2 * self.pixel_render_size, self.pixel_render_size, self.pixel_render_size
+                )
+            )
 
         if self.render_mode == "human":
             self.window.blit(canvas, canvas.get_rect())

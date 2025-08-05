@@ -82,8 +82,8 @@ def handle_inputs():
 
 def rules_and_countdown(countdown=10):
     print(ENV_RULES)
-    time.sleep(countdown - 3)
-    for i in range(3, 0, -1):
+    time.sleep(5)
+    for i in range(countdown, 0, -1):
         print(f"{i}...")
         time.sleep(1)
     print(FIGHT)
@@ -105,7 +105,7 @@ if __name__ == '__main__':
     truncated = False
     timestep = 0
     rewards = [0.0, 0.0]
-    rules_and_countdown()
+    rules_and_countdown(countdown=3)
     while not (terminated or truncated):
         action_1, close_request = handle_inputs()
         action_2 = np.random.randint(0, 6)
