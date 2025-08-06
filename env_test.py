@@ -97,7 +97,8 @@ if __name__ == '__main__':
         "hurt": -0.2,
         "stun": -0.1,
         "block": 0.1,
-        "time": -0.001
+        "time": -0.001,
+        "draw": -0.5
     }
     env = gym.make("MinimalFightingEnv-v0", render_mode="human", reward_shape=reward_shape, raw_pixel_obs=True, initial_health=7)
     obs, info = env.reset(seed=np.random.randint(0, 100000))

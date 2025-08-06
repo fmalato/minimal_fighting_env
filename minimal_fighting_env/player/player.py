@@ -6,9 +6,10 @@ class Player:
         self.max_hp = max_hp
         self.hp = max_hp
         self.damaged_frames = 0
+        self.attack_masked_frames = 0
 
     def get_state(self):
-        return [self.position["x"], self.position["y"], self.hp, self.stunned_frames, self.damaged_frames]
+        return [self.position["x"], self.position["y"], self.hp, self.stunned_frames, self.damaged_frames, self.attack_masked_frames]
 
     def get_dict_state(self):
         return {
@@ -16,7 +17,8 @@ class Player:
             "y": self.position["y"],
             "hp": self.hp,
             "stunned": self.stunned_frames,
-            "damaged": self.damaged_frames
+            "damaged": self.damaged_frames,
+            "attack_masked": self.attack_masked_frames
         }
 
     def get_position(self):
@@ -54,8 +56,15 @@ class Player:
         if self.damaged_frames > 0:
             self.damaged_frames -= 1
 
+    def get_attack_masked_frames(self):
+        return self.attack_masked_frames
+
+    def set_attack_masked_frames(self, value):
+        self.attack_masked_frames = value
+
     def reset(self, x: int, y: int):
         self.position = {"x": x, "y": y}
         self.stunned_frames = 0
         self.damaged_frames = 0
         self.hp = self.max_hp
+        self.attack_masked_frames = 0

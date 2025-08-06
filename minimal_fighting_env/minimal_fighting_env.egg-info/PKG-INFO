@@ -1,7 +1,8 @@
-Metadata-Version: 2.4
+Metadata-Version: 2.2
 Name: minimal_fighting_env
-Version: 0.0.1
+Version: 0.0.2
 Requires-Dist: gymnasium==0.29.1
 Requires-Dist: pygame==2.6.0
 Requires-Dist: gym==0.26.2
+Requires-Dist: matplotlib==3.10.3
 Dynamic: requires-dist
