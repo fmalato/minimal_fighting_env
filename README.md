@@ -50,7 +50,7 @@ reward_shape = {
 
 ## Rules
 - Each player has `initial_health` Hit Points.
-- If the opponent hits you, you lose 1 Hit Point.
+- If the opponent hits you, you lose 1 Hit Point for a punch, 2 Hit Points for a kick.
 - Successfully blocking an incoming attack stuns the opponent for 
   5 time steps.
 - If a stunned player is hit, they are no longer stunned.
