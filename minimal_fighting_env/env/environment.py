@@ -1,3 +1,4 @@
+from copy import deepcopy
 from typing import Optional
 
 import gymnasium as gym
@@ -61,6 +62,7 @@ class MinimalFightingEnv(gym.Env):
         self.raw_pixel_obs = raw_pixel_obs
         assert self.initial_health <= int(self.grid_width / 2), f"'initial_health' must be <= {int(self.grid_width / 2)}"
 
+        # TODO: maybe add remaining time to the state? How to convey this in raw pixels? Timer mechanism?
         if self.raw_pixel_obs:
             obs_dict = {
                 "p1": gym.spaces.Box(low=0.0, high=1.0, shape=(self.grid_height, self.grid_width, 3)),
@@ -308,12 +310,17 @@ class MinimalFightingEnv(gym.Env):
         p2_state = self.p2.get_state()
         p2_state.append(self.p2_attack_mask_frames)
         p2_state.append(self.p2_last_action)
+        # P1 inverted
+        p1_inverted = deepcopy(p1_state)
+        p1_inverted[0] = self.grid_width - p1_state[0] - 1
+        p2_inverted = deepcopy(p2_state)
+        p2_inverted[0] = self.grid_width - p2_state[0] - 1
         if self.raw_pixel_obs:
             obs = self._build_obs_grid(p1_state, p2_state)
         else:
             obs = {
                 "p1": np.concatenate([p1_state, p2_state]).astype(np.int32),
-                "p2": np.concatenate([p2_state, p1_state]).astype(np.int32)
+                "p2": np.concatenate([p2_inverted, p1_inverted]).astype(np.int32)
             }
 
         return obs
