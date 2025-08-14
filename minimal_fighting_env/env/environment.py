@@ -3,7 +3,7 @@ from typing import Optional
 import gymnasium as gym
 import numpy as np
 import pygame
-from elo import eloCalculator
+from minimal_fighting_env.env.elo import eloCalculator
 
 from player.player import Player
 
