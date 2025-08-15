@@ -34,7 +34,7 @@ YELLOW = (255, 255, 0)
 class MinimalFightingEnv(gym.Env):
     metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 3}
 
-    def __init__(self, max_timesteps: int = 1000, initial_health: int = 3, reward_shape: Optional[dict] = None, raw_pixel_obs: bool = False, render_mode: str = None, render_fps: int = None, p1_elo: float = 1500, p2_elo: float = 15000):
+    def __init__(self, max_timesteps: int = 1000, initial_health: int = 3, reward_shape: Optional[dict] = None, raw_pixel_obs: bool = False, render_mode: str = None, render_fps: int = None, p1_elo: float = 1500, p2_elo: float = 1500):
         super().__init__()
         # TODO: [TBD] add best of series?
         if reward_shape is not None:
@@ -494,7 +494,7 @@ class MinimalFightingEnv(gym.Env):
             )
 
     def close(self):
-        # TODO calculate ELO
+        # Calculate ELO rankings after the match
         winner = 0
         if (self.p1_score < self.p2_score):
             winner = 1
