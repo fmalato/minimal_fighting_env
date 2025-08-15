@@ -171,7 +171,7 @@ class MinimalFightingEnv(gym.Env):
             self.p2.set_hp(self.p2.get_hp() - damage)
             self.p2.set_damaged(self.damaged_steps)
             self.p2.set_position(x=min(p2_pos["x"] + 2, self.grid_width - 1), y=p2_pos["y"])
-        elif p2_hit_punch or p2_hit_kick:
+        if p2_hit_punch or p2_hit_kick:
             damage = 1 if p2_hit_punch else 2
             self.p1.set_hp(self.p1.get_hp() - damage)
             self.p1.set_damaged(self.damaged_steps)
@@ -209,11 +209,15 @@ class MinimalFightingEnv(gym.Env):
         p2_rewards = dict(zip(REQUIRED_REWARD_CONDITIONS, [0.0 for _ in range(len(REQUIRED_REWARD_CONDITIONS))]))
         result = None
         # Dead condition
-        if p1_dead:
+        if p1_dead and p2_dead:
+            p1_rewards["draw"] += self.reward_shape["draw"]
+            p2_rewards["draw"] += self.reward_shape["draw"]
+            result = "draw"
+        elif p1_dead and not p2_dead:
             p1_rewards["lose"] += self.reward_shape["lose"]
             p2_rewards["win"] += self.reward_shape["win"]
             result = "p2_win"
-        elif p2_dead:
+        elif p2_dead and not p1_dead:
             p1_rewards["win"] += self.reward_shape["win"]
             p2_rewards["lose"] += self.reward_shape["lose"]
             result = "p1_win"
@@ -252,27 +256,53 @@ class MinimalFightingEnv(gym.Env):
         return p1_rewards, p2_rewards, result
 
     def _move_players(self):
-        p1_pos = self.p1.get_position()
-        p2_pos = self.p2.get_position()
-
         p1_stun = self.p1.get_stunned()
         p2_stun = self.p2.get_stunned()
 
-        if p1_stun == 0:
-            if ACTION_NAMES[self.p1_last_action] == "left":
-                self.p1.set_position(x=max(0, min(p1_pos["x"] - 1, p2_pos["x"] - 1)), y=p1_pos["y"])
-            elif ACTION_NAMES[self.p1_last_action] == "right":
-                self.p1.set_position(x=max(0, min(p1_pos["x"] + 1, p2_pos["x"] - 1)), y=p1_pos["y"])
-        else:
-            self.p1.decrease_stunned()
+        coin_flip = np.random.randint(0, 2)
+        if coin_flip == 0:
+            if p1_stun == 0:
+                p1_pos = self.p1.get_position()
+                p2_pos = self.p2.get_position()
+                if ACTION_NAMES[self.p1_last_action] == "left":
+                    self.p1.set_position(x=max(0, min(p1_pos["x"] - 1, p2_pos["x"] - 1)), y=p1_pos["y"])
+                elif ACTION_NAMES[self.p1_last_action] == "right":
+                    self.p1.set_position(x=max(0, min(p1_pos["x"] + 1, p2_pos["x"] - 1)), y=p1_pos["y"])
+            else:
+                self.p1.decrease_stunned()
 
-        if p2_stun == 0:
-            if ACTION_NAMES[self.p2_last_action] == "left":
-                self.p2.set_position(x=min(self.grid_width - 1, max(p1_pos["x"] + 1, p2_pos["x"] - 1)), y=p2_pos["y"])
-            elif ACTION_NAMES[self.p2_last_action] == "right":
-                self.p2.set_position(x=min(self.grid_width - 1, max(p1_pos["x"] + 1, p2_pos["x"] + 1)), y=p2_pos["y"])
+            if p2_stun == 0:
+                p1_pos = self.p1.get_position()
+                p2_pos = self.p2.get_position()
+                if ACTION_NAMES[self.p2_last_action] == "left":
+                    self.p2.set_position(x=min(self.grid_width - 1, max(p1_pos["x"] + 1, p2_pos["x"] - 1)), y=p2_pos["y"])
+                elif ACTION_NAMES[self.p2_last_action] == "right":
+                    self.p2.set_position(x=min(self.grid_width - 1, max(p1_pos["x"] + 1, p2_pos["x"] + 1)), y=p2_pos["y"])
+            else:
+                self.p2.decrease_stunned()
+
+        # TODO: refactor urgently
         else:
-            self.p2.decrease_stunned()
+            if p2_stun == 0:
+                p1_pos = self.p1.get_position()
+                p2_pos = self.p2.get_position()
+                if ACTION_NAMES[self.p2_last_action] == "left":
+                    self.p2.set_position(x=min(self.grid_width - 1, max(p1_pos["x"] + 1, p2_pos["x"] - 1)), y=p2_pos["y"])
+                elif ACTION_NAMES[self.p2_last_action] == "right":
+                    self.p2.set_position(x=min(self.grid_width - 1, max(p1_pos["x"] + 1, p2_pos["x"] + 1)), y=p2_pos["y"])
+            else:
+                self.p2.decrease_stunned()
+
+            if p1_stun == 0:
+                p1_pos = self.p1.get_position()
+                p2_pos = self.p2.get_position()
+                if ACTION_NAMES[self.p1_last_action] == "left":
+                    self.p1.set_position(x=max(0, min(p1_pos["x"] - 1, p2_pos["x"] - 1)), y=p1_pos["y"])
+                elif ACTION_NAMES[self.p1_last_action] == "right":
+                    self.p1.set_position(x=max(0, min(p1_pos["x"] + 1, p2_pos["x"] - 1)), y=p1_pos["y"])
+            else:
+                self.p1.decrease_stunned()
+
 
     def _check_collisions(self, p1_pos, p2_pos):
         p1_hit_punch = False
