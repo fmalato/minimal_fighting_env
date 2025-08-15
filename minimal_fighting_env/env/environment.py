@@ -536,7 +536,7 @@ class MinimalFightingEnv(gym.Env):
         if (self.p1_score < self.p2_score):
             winner = 1
         calc = eloCalculator()
-        new_ranks = calc.calculateRankChange(1500, 1500, winner)
+        new_ranks = calc.calculateRankChange(self.p1_elo, self.p2_elo, winner)
 
         print(f"New player 1 rank: {new_ranks[0]}")
         print(f"New player 2 rank: {new_ranks[1]}")
