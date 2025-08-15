@@ -4,6 +4,7 @@ from typing import Optional
 import gymnasium as gym
 import numpy as np
 import pygame
+from minimal_fighting_env.env.elo import eloCalculator
 
 from player.player import Player
 
@@ -34,7 +35,7 @@ YELLOW = (255, 255, 0)
 class MinimalFightingEnv(gym.Env):
     metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 3}
 
-    def __init__(self, max_timesteps: int = 1000, initial_health: int = 3, reward_shape: Optional[dict] = None, raw_pixel_obs: bool = False, render_mode: str = None, render_fps: int = None):
+    def __init__(self, max_timesteps: int = 1000, initial_health: int = 3, reward_shape: Optional[dict] = None, raw_pixel_obs: bool = False, render_mode: str = None, render_fps: int = None, p1_elo: float = 1500, p2_elo: float = 1500):
         super().__init__()
         # TODO: [TBD] add best of series?
         if reward_shape is not None:
@@ -54,6 +55,12 @@ class MinimalFightingEnv(gym.Env):
         self.p2_last_action = 0
         self.p1_attack_mask_frames = 0
         self.p2_attack_mask_frames = 0
+
+        self.p1_elo = p1_elo
+        self.p2_elo = p2_elo
+
+        self.p1_score = 0
+        self.p2_score = 0
 
         self.timestep = 0
         self.max_timesteps = max_timesteps
@@ -93,13 +100,13 @@ class MinimalFightingEnv(gym.Env):
 
     def _create_default_reward(self):
         reward = {
-            "win": 1.0,
+            "win": 5.0,
             "lose": -1.0,
-            "hit": 0.0,
-            "hurt": 0.0,
+            "hit": 1.0,
+            "hurt": -1.0,
             "block": 0.0,
             "stun": 0.0,
-            "time": 0.0,
+            "time": -0.01,
             "draw": 0.0
         }
 
@@ -172,6 +179,11 @@ class MinimalFightingEnv(gym.Env):
 
         p1_dead = self.p1.get_hp() <= 0
         p2_dead = self.p2.get_hp() <= 0
+
+        if (p1_dead):
+            self.p2_score += 1
+        if (p2_dead):
+            self.p1_score += 1
 
         obs = self._get_obs()
 
@@ -489,6 +501,16 @@ class MinimalFightingEnv(gym.Env):
             )
 
     def close(self):
+        # Calculate ELO rankings after the match
+        winner = 0
+        if (self.p1_score < self.p2_score):
+            winner = 1
+        calc = eloCalculator()
+        new_ranks = calc.calculateRankChange(1500, 1500, winner)
+
+        print(f"New player 1 rank: {new_ranks[0]}")
+        print(f"New player 2 rank: {new_ranks[1]}")
+
         if self.window is not None:
             pygame.display.quit()
             pygame.quit()
